@@ -16,7 +16,7 @@ contract TaskEscrow is Initializable {
     uint256 public deadline;
     bool public isCompleted;
     bool public isDisputed;
-    enum Status { OPEN, ASSIGNED, COMPLETED, DISPUTED }
+    enum Status { OPEN, ASSIGNED, COMPLETED, DISPUTED, PAID_OUT }
     Status public status;
 
     //=========================================================
@@ -59,6 +59,7 @@ contract TaskEscrow is Initializable {
     function assignTask(address _assignee) external onlyTaskOwner {
         require(status == Status.OPEN, Error.TASK_HAS_ALREADY_BEEN_ASSIGNED_OR_COMPLETED());
         require(_assignee != address(0), Error.CAN_NOT_ASSIGN_TO_ADDRESS_ZERO());
+
         taskAssignee = _assignee;
         status = Status.ASSIGNED;
         emit Event.TaskAssigned(_assignee);
@@ -69,26 +70,37 @@ contract TaskEscrow is Initializable {
 
         isCompleted = true;
         status = Status.COMPLETED;
+        
         emit Event.TaskCompleted();
     }
 
     function releasePayment() external onlyTaskOwner {
         require(status == Status.COMPLETED, Error.TASK_NOT_COMPLETED());
+        require(status != Status.PAID_OUT, Error.TASK_HAS_ALREADY_BEEN_PAID_OUT());
+        
+        status = Status.PAID_OUT;
         payable(taskAssignee).transfer(reward);
+
         emit Event.FundsReleased(taskAssignee, reward);
     }
 
     function raiseDispute() external {
         require(msg.sender == taskOwner || msg.sender == taskAssignee, Error.UNAUTHORIZED());
+        require(status != Status.DISPUTED, Error.DISPUTE_ALREADY_RAISED());
+        require(status != Status.PAID_OUT, Error.TASK_HAS_ALREADY_BEEN_PAID_OUT());
+
         isDisputed = true;
         status = Status.DISPUTED;
         emit Event.DisputeRaised();
     }
 
-    function resolveDispute(address _winner) external {
+    function resolveDispute(address _winner) external onlyFactory {
         require(status == Status.DISPUTED, Error.NO_ACTIVE_DISPUTE());
+        require(status != Status.PAID_OUT, Error.TASK_HAS_ALREADY_BEEN_PAID_OUT());
+        require(_winner != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+
         (bool success, )= payable(_winner).call{value: reward}("");
-        status = Status.COMPLETED;
+        status = Status.PAID_OUT;
     }
 
     receive() external payable {}

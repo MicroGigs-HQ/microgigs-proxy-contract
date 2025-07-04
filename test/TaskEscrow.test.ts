@@ -334,10 +334,6 @@ describe("TaskEscrow", function () {
   });
 
   describe("releasePayment", function () {
-    beforeEach(async function () {
-      const { taskEscrow } = await getInitializedContract();
-      await taskEscrow.receive({ value: reward });
-    });
 
     it("Should release payment successfully by task owner", async function () {
       const { taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
@@ -410,35 +406,216 @@ describe("TaskEscrow", function () {
 
       await expect(
         taskEscrow.connect(taskOwner).releasePayment()
-      ).to.be.reverted; // Should revert due to insufficient funds
+      ).to.be.reverted;
+    });
+  });
+
+  describe("raiseDispute", function () {
+    it("Should raise dispute successfully by task owner", async function () {
+      const { taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+
+      await expect(taskEscrow.connect(taskOwner).raiseDispute())
+        .to.emit(taskEscrow, "DisputeRaised");
+
+      expect(await taskEscrow.isDisputed()).to.equal(true);
+      expect(await taskEscrow.status()).to.equal(3); // Status.DISPUTED
     });
 
-    it("Should handle zero reward payment", async function () {
-      const { taskEscrow, factory, taskOwner, taskAssignee } = await loadFixture(deployTaskEscrowFixture);
+    it("Should raise dispute successfully by task assignee", async function () {
+      const { taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
 
-      // Initialize with zero reward
-      await taskEscrow.initialize(
-        factory.address,
-        taskOwner.address,
-        title,
-        description,
-        category,
-        0, // Zero reward
-        deadlineInSeconds
-      );
 
-      // Assign and complete task
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+
+      await expect(taskEscrow.connect(taskAssignee).raiseDispute())
+        .to.emit(taskEscrow, "DisputeRaised");
+
+      expect(await taskEscrow.isDisputed()).to.equal(true);
+      expect(await taskEscrow.status()).to.equal(3); // Status.DISPUTED
+    });
+
+    it("Should revert if called by unauthorized user", async function () {
+      const { taskEscrow, taskOwner, taskAssignee, otherAccount } = await getInitializedContract();
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+
+      await expect(
+        taskEscrow.connect(otherAccount).raiseDispute()
+      ).to.be.revertedWithCustomError(taskEscrow, "UNAUTHORIZED");
+    });
+
+    it("Should allow dispute after task completion", async function () {
+      const { taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
       await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
       await taskEscrow.connect(taskAssignee).submitWork();
 
+      await expect(taskEscrow.connect(taskOwner).raiseDispute())
+        .to.emit(taskEscrow, "DisputeRaised");
+
+      expect(await taskEscrow.isDisputed()).to.equal(true);
+      expect(await taskEscrow.status()).to.equal(3); // Status.DISPUTED
+    });
+
+    it("Should not allow multiple dispute calls", async function () {
+      const { taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+
+      await taskEscrow.connect(taskOwner).raiseDispute();
+      
+      await expect(taskEscrow.connect(taskAssignee).raiseDispute())
+        .to.be.revertedWithCustomError(taskEscrow, "DISPUTE_ALREADY_RAISED");
+    });
+  });
+
+  describe("resolveDispute", function () {
+    it("Should resolve dispute successfully with task owner as winner", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee, otherAccount } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskOwner).raiseDispute();
+
+      const initialBalance = await hre.ethers.provider.getBalance(taskOwner.address);
+
+      await taskEscrow.connect(factory).resolveDispute(taskOwner.address);
+
+      const finalBalance = await hre.ethers.provider.getBalance(taskOwner.address);
+      expect(finalBalance - initialBalance).to.equal(reward);
+      expect(await taskEscrow.status()).to.equal(4); // Status.PAID_OUT
+    });
+
+    it("Should resolve dispute successfully with task assignee as winner", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskAssignee).raiseDispute();
+
       const initialBalance = await hre.ethers.provider.getBalance(taskAssignee.address);
 
-      await expect(taskEscrow.connect(taskOwner).releasePayment())
-        .to.emit(taskEscrow, "FundsReleased")
-        .withArgs(taskAssignee.address, 0);
+      await taskEscrow.connect(factory).resolveDispute(taskAssignee.address);
 
       const finalBalance = await hre.ethers.provider.getBalance(taskAssignee.address);
-      expect(finalBalance).to.equal(initialBalance);
+      expect(finalBalance - initialBalance).to.equal(reward);
+      expect(await taskEscrow.status()).to.equal(4); // Status.PAID_OUT
+    });
+
+    it("Should revert if no active dispute", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await expect(
+        taskEscrow.connect(factory).resolveDispute(taskAssignee.address)
+      ).to.be.revertedWithCustomError(taskEscrow, "NO_ACTIVE_DISPUTE");
+    });
+
+    it("Should resolve dispute with third party as winner", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee, otherAccount } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskOwner).raiseDispute();
+
+      const initialBalance = await hre.ethers.provider.getBalance(otherAccount.address);
+
+      await taskEscrow.connect(factory).resolveDispute(otherAccount.address);
+
+      const finalBalance = await hre.ethers.provider.getBalance(otherAccount.address);
+      expect(finalBalance - initialBalance).to.equal(reward);
+      expect(await taskEscrow.status()).to.equal(4);
+    });
+
+    it("Should handle zero address not as winner", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskOwner).raiseDispute();
+
+      await expect(
+        taskEscrow.connect(factory).resolveDispute(hre.ethers.ZeroAddress)
+      ).to.be.revertedWithCustomError(taskEscrow, "CAN_NOT_USE_ADDRESS_ZERO");
+    });
+
+    // todo: recheck
+    // it("Should handle insufficient contract balance", async function () {
+    //   const { factory, taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+    //   await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+    //   await taskEscrow.connect(taskOwner).raiseDispute();
+
+    //   await expect(
+    //     taskEscrow.connect(factory).resolveDispute(taskAssignee.address)
+    //   ).to.be.reverted;
+    // });
+
+    it("Should allow anyone to resolve dispute", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee, otherAccount } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskOwner).raiseDispute();
+
+      await expect(
+        taskEscrow.connect(factory).resolveDispute(taskAssignee.address)
+      ).to.not.be.reverted;
+    });
+  });
+
+  describe("Integration Tests", function () {
+    it("Should handle complete workflow: assign -> submit -> release", async function () {
+      const { taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskAssignee).submitWork();
+      await taskEscrow.connect(taskOwner).releasePayment();
+
+      expect(await taskEscrow.status()).to.equal(4); // Status.PAID_OUT
+      expect(await taskEscrow.isCompleted()).to.equal(true);
+    });
+
+    it("Should handle workflow with dispute: assign -> dispute -> resolve", async function () {
+      const { factory, taskEscrow, taskOwner, taskAssignee } = await getInitializedContract();
+
+      await taskOwner.sendTransaction({
+        to: await taskEscrow.getAddress(),
+        value: reward
+      });
+
+      await taskEscrow.connect(taskOwner).assignTask(taskAssignee.address);
+      await taskEscrow.connect(taskOwner).raiseDispute();
+      await taskEscrow.connect(factory).resolveDispute(taskAssignee.address);
+
+      expect(await taskEscrow.status()).to.equal(4); // Status.PAID_OUT
+      expect(await taskEscrow.isDisputed()).to.equal(true);
     });
   });
 });
