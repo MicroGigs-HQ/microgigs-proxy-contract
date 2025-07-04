@@ -6,4 +6,5 @@ library Event {
     event TaskCompleted();
     event DisputeRaised();
     event FundsReleased(address indexed recipient, uint256 amount);
+    event TaskCreated(address indexed taskAddress, address indexed creator);
 }
