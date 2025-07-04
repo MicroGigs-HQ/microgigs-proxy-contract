@@ -10,4 +10,5 @@ library Error {
     error TASK_NOT_COMPLETED();
     error UNAUTHORIZED();
     error NO_ACTIVE_DISPUTE();
+    error REWARD_CANNOT_BE_EMPTY();
 }
