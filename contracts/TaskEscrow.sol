@@ -58,6 +58,7 @@ contract TaskEscrow is Initializable {
 
     function assignTask(address _assignee) external onlyTaskOwner {
         require(status == Status.OPEN, Error.TASK_HAS_ALREADY_BEEN_ASSIGNED_OR_COMPLETED());
+        require(_assignee != address(0), Error.CAN_NOT_ASSIGN_TO_ADDRESS_ZERO());
         taskAssignee = _assignee;
         status = Status.ASSIGNED;
         emit Event.TaskAssigned(_assignee);
@@ -65,6 +66,7 @@ contract TaskEscrow is Initializable {
 
     function submitWork() external onlyTaskAssignee {
         require(status == Status.ASSIGNED, Error.TASK_NOT_ASSIGNED());
+
         isCompleted = true;
         status = Status.COMPLETED;
         emit Event.TaskCompleted();

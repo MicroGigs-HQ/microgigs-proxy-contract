@@ -11,4 +11,6 @@ library Error {
     error UNAUTHORIZED();
     error NO_ACTIVE_DISPUTE();
     error REWARD_CANNOT_BE_EMPTY();
+    error CAN_NOT_ASSIGN_TO_ADDRESS_ZERO();
+    error TASK_HAS_ALREADY_BEEN_COMPLETED();
 }
