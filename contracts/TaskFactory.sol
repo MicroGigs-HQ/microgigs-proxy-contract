@@ -3,15 +3,20 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./TaskEscrow.sol";
 import "./lib/Error.sol";
 import "./lib/Event.sol";
 
 contract TaskFactory is Initializable {
     using Clones for address;
+    using SafeERC20 for IERC20;
 
     address public taskEscrowImplementation;
     address[] public tasks;
+    mapping(address => uint256) public userTaskCounts;
+    mapping(TaskEscrow.Status => uint256) public taskStatusCounts;
 
     function initialize(address _taskEscrowImpl) public initializer {
         taskEscrowImplementation = _taskEscrowImpl;
@@ -21,26 +26,97 @@ contract TaskFactory is Initializable {
         string memory _title,
         string memory _description,
         string memory _category,
-        uint256 _deadline
+        address _tokenAddress,
+        uint256 _deadline,
+        uint256 _reward
     ) external payable returns (address) {
-        require(msg.value > 0, Error.REWARD_CANNOT_BE_EMPTY());
+        require(_reward > 0, Error.REWARD_CANNOT_BE_EMPTY());
+        require(msg.sender != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
 
+        // Create new task escrow contract
         address clone = taskEscrowImplementation.clone();
         address payable payableClone = payable(clone);
+
+        IERC20 token = IERC20(_tokenAddress);
+        require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
+        
+        token.safeTransferFrom(msg.sender, clone, _reward);
+
         TaskEscrow(payableClone).initialize(
             address(this),
             msg.sender,
             _title,
             _description,
             _category,
-            msg.value,
+            _tokenAddress,
+            _reward,
             _deadline
         );
 
         tasks.push(clone);
-        (bool success, ) = payable(clone).call{value: msg.value}("");
+        userTaskCounts[msg.sender]++;
+        taskStatusCounts[TaskEscrow.Status.OPEN]++;
 
-        emit Event.TaskCreated(clone, msg.sender);
+        emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
         return clone;
+    }
+
+    function getTotalTasks() external view returns (uint256) {
+        return tasks.length;
+    }
+
+    function getTaskStatusCounts() external view returns (
+        uint256 open,
+        uint256 assigned,
+        uint256 completed,
+        uint256 disputed,
+        uint256 paidOut
+    ) {
+        return (
+            taskStatusCounts[TaskEscrow.Status.OPEN],
+            taskStatusCounts[TaskEscrow.Status.ASSIGNED],
+            taskStatusCounts[TaskEscrow.Status.COMPLETED],
+            taskStatusCounts[TaskEscrow.Status.DISPUTED],
+            taskStatusCounts[TaskEscrow.Status.PAID_OUT]
+        );
+    }
+
+    function isTaskContract(address _address) public view returns (bool) {
+        for (uint256 i = 0; i < tasks.length; i++) {
+            if (tasks[i] == _address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function getTaskDetails(address _taskAddress) external view returns (
+        address taskOwner,
+        address taskAssignee,
+        string memory title,
+        string memory description,
+        string memory category,
+        address tokenAddress,
+        uint256 reward,
+        uint256 deadline,
+        TaskEscrow.Status status,
+        bool isCompleted,
+        bool isDisputed
+    ) {
+        TaskEscrow task = TaskEscrow(payable(_taskAddress));
+        return (
+            task.taskOwner(),
+            task.taskAssignee(),
+            task.title(),
+            task.description(),
+            task.category(),
+            task.tokenAddress(),
+            task.reward(),
+            task.deadline(),
+            task.status(),
+            task.isCompleted(),
+            task.isDisputed()
+        );
     }
 }
