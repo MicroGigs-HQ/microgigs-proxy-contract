@@ -8,7 +8,8 @@ import "./lib/Error.sol";
 import "./lib/Event.sol";
 
 interface ITaskFactory {
-    function updateTaskStatus(TaskEscrow.Status _oldStatus, TaskEscrow.Status _newStatus) external;
+    function updateTaskStatus(TaskEscrow.Status _oldStatus, TaskEscrow.Status _newStatus)
+        external;
 }
 
 contract TaskEscrow is Initializable {
@@ -25,8 +26,16 @@ contract TaskEscrow is Initializable {
     uint256 public deadline;
     bool public isCompleted;
     bool public isDisputed;
-    
-    enum Status { OPEN, ASSIGNED, COMPLETED, DISPUTED, PAID_OUT, CANCELLED }
+
+    enum Status {
+        OPEN,
+        ASSIGNED,
+        COMPLETED,
+        DISPUTED,
+        PAID_OUT,
+        CANCELLED
+    }
+
     Status public status;
 
     //=========================================================
@@ -56,7 +65,7 @@ contract TaskEscrow is Initializable {
         require(block.timestamp <= deadline, Error.DEADLINE_HAS_PASSED());
         _;
     }
-    
+
     function initialize(
         address _factory,
         address _taskOwner,
@@ -85,7 +94,7 @@ contract TaskEscrow is Initializable {
 
         taskAssignee = _assignee;
         _updateStatus(Status.ASSIGNED);
-        
+
         emit Event.TaskAssigned(_assignee);
     }
 
@@ -94,14 +103,14 @@ contract TaskEscrow is Initializable {
 
         isCompleted = true;
         _updateStatus(Status.COMPLETED);
-        
+
         emit Event.TaskCompleted();
     }
 
     function releasePayment() external onlyTaskOwner {
         require(status == Status.COMPLETED, Error.TASK_NOT_COMPLETED());
         require(status != Status.PAID_OUT, Error.TASK_HAS_ALREADY_BEEN_PAID_OUT());
-        
+
         _updateStatus(Status.PAID_OUT);
         _transferFunds(taskAssignee, reward);
 
@@ -112,7 +121,10 @@ contract TaskEscrow is Initializable {
         require(msg.sender == taskOwner || msg.sender == taskAssignee, Error.UNAUTHORIZED());
         require(status != Status.DISPUTED, Error.DISPUTE_ALREADY_RAISED());
         require(status != Status.PAID_OUT, Error.TASK_HAS_ALREADY_BEEN_PAID_OUT());
-        require(status == Status.ASSIGNED || status == Status.COMPLETED, Error.INVALID_STATUS_FOR_DISPUTE());
+        require(
+            status == Status.ASSIGNED || status == Status.COMPLETED,
+            Error.INVALID_STATUS_FOR_DISPUTE()
+        );
 
         isDisputed = true;
         _updateStatus(Status.DISPUTED);
@@ -127,76 +139,79 @@ contract TaskEscrow is Initializable {
 
         _updateStatus(Status.PAID_OUT);
         _transferFunds(_winner, reward);
-        
+
         emit Event.DisputeResolved(_winner, reward);
     }
 
     function cancelTask() external onlyTaskOwner {
         require(status == Status.OPEN, Error.TASK_CANNOT_BE_CANCELLED());
-        
+
         _updateStatus(Status.CANCELLED);
         _transferFunds(taskOwner, reward);
-        
+
         emit Event.TaskCancelled();
     }
 
     function withdrawAfterDeadline() external onlyTaskAssignee onlyAfterDeadline {
         require(status == Status.COMPLETED, Error.TASK_NOT_COMPLETED());
-        
+
         _updateStatus(Status.PAID_OUT);
         _transferFunds(taskAssignee, reward);
-        
+
         emit Event.FundsReleased(taskAssignee, reward);
     }
 
     function reclaimFunds() external onlyTaskOwner onlyAfterDeadline {
         require(status == Status.ASSIGNED, Error.INVALID_STATUS_FOR_RECLAIM());
         require(!isCompleted, Error.TASK_HAS_ALREADY_BEEN_COMPLETED());
-        
+
         _updateStatus(Status.PAID_OUT);
         _transferFunds(taskOwner, reward);
-        
+
         emit Event.FundsReclaimed(taskOwner, reward);
     }
 
     //=========================================================
     //==================== INTERNAL FUNCTIONS =================
-    //=========================================================    
+    //=========================================================
 
     function _updateStatus(Status _newStatus) internal {
         Status oldStatus = status;
         status = _newStatus;
-        
+
         // Notify factory of status change
         try ITaskFactory(factory).updateTaskStatus(oldStatus, _newStatus) {} catch {}
-        
+
         emit Event.TaskStatusChanged(oldStatus, _newStatus);
     }
 
     function _transferFunds(address _recipient, uint256 _amount) internal {
         require(_recipient != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
-        
+
         IERC20(tokenAddress).safeTransfer(_recipient, _amount);
     }
-
 
     //=========================================================
     //==================== GETTER FUNCTIONS ===================
     //=========================================================
-    
-    function getTaskInfo() external view returns (
-        address owner,
-        address assignee,
-        string memory taskTitle,
-        string memory taskDescription,
-        string memory taskCategory,
-        address token,
-        uint256 rewardAmount,
-        uint256 taskDeadline,
-        Status taskStatus,
-        bool completed,
-        bool disputed
-    ) {
+
+    function getTaskInfo()
+        external
+        view
+        returns (
+            address owner,
+            address assignee,
+            string memory taskTitle,
+            string memory taskDescription,
+            string memory taskCategory,
+            address token,
+            uint256 rewardAmount,
+            uint256 taskDeadline,
+            Status taskStatus,
+            bool completed,
+            bool disputed
+        )
+    {
         return (
             taskOwner,
             taskAssignee,
@@ -217,7 +232,8 @@ contract TaskEscrow is Initializable {
     }
 
     function canSubmitWork() external view returns (bool) {
-        return status == Status.ASSIGNED && block.timestamp <= deadline && msg.sender == taskAssignee;
+        return
+            status == Status.ASSIGNED && block.timestamp <= deadline && msg.sender == taskAssignee;
     }
 
     function canReleasePayment() external view returns (bool) {
@@ -225,10 +241,8 @@ contract TaskEscrow is Initializable {
     }
 
     function canRaiseDispute() external view returns (bool) {
-        return (msg.sender == taskOwner || msg.sender == taskAssignee) && 
-               status != Status.DISPUTED && 
-               status != Status.PAID_OUT &&
-               (status == Status.ASSIGNED || status == Status.COMPLETED);
+        return (msg.sender == taskOwner || msg.sender == taskAssignee) && status != Status.DISPUTED
+            && status != Status.PAID_OUT && (status == Status.ASSIGNED || status == Status.COMPLETED);
     }
 
     function getTimeLeft() external view returns (uint256) {

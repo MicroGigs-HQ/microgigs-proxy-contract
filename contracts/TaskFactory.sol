@@ -40,7 +40,7 @@ contract TaskFactory is Initializable {
 
         IERC20 token = IERC20(_tokenAddress);
         require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
-        
+
         token.safeTransferFrom(msg.sender, clone, _reward);
 
         TaskEscrow(payableClone).initialize(
@@ -66,13 +66,17 @@ contract TaskFactory is Initializable {
         return tasks.length;
     }
 
-    function getTaskStatusCounts() external view returns (
-        uint256 open,
-        uint256 assigned,
-        uint256 completed,
-        uint256 disputed,
-        uint256 paidOut
-    ) {
+    function getTaskStatusCounts()
+        external
+        view
+        returns (
+            uint256 open,
+            uint256 assigned,
+            uint256 completed,
+            uint256 disputed,
+            uint256 paidOut
+        )
+    {
         return (
             taskStatusCounts[TaskEscrow.Status.OPEN],
             taskStatusCounts[TaskEscrow.Status.ASSIGNED],
@@ -91,19 +95,23 @@ contract TaskFactory is Initializable {
         return false;
     }
 
-    function getTaskDetails(address _taskAddress) external view returns (
-        address taskOwner,
-        address taskAssignee,
-        string memory title,
-        string memory description,
-        string memory category,
-        address tokenAddress,
-        uint256 reward,
-        uint256 deadline,
-        TaskEscrow.Status status,
-        bool isCompleted,
-        bool isDisputed
-    ) {
+    function getTaskDetails(address _taskAddress)
+        external
+        view
+        returns (
+            address taskOwner,
+            address taskAssignee,
+            string memory title,
+            string memory description,
+            string memory category,
+            address tokenAddress,
+            uint256 reward,
+            uint256 deadline,
+            TaskEscrow.Status status,
+            bool isCompleted,
+            bool isDisputed
+        )
+    {
         TaskEscrow task = TaskEscrow(payable(_taskAddress));
         return (
             task.taskOwner(),
