@@ -7,10 +7,10 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./lib/Error.sol";
 import "./lib/Event.sol";
 
-interface ITaskFactory {
-    function updateTaskStatus(TaskEscrow.Status _oldStatus, TaskEscrow.Status _newStatus)
-        external;
-}
+// interface ITaskFactory {
+//     function updateTaskStatus(TaskEscrow.Status _oldStatus, TaskEscrow.Status _newStatus)
+//         external;
+// }
 
 contract TaskEscrow is Initializable {
     using SafeERC20 for IERC20;
@@ -108,8 +108,8 @@ contract TaskEscrow is Initializable {
     }
 
     function releasePayment() external onlyTaskOwner {
-        require(status == Status.COMPLETED, Error.TASK_NOT_COMPLETED());
         require(status != Status.PAID_OUT, Error.TASK_HAS_ALREADY_BEEN_PAID_OUT());
+        require(status == Status.COMPLETED, Error.TASK_NOT_COMPLETED());
 
         _updateStatus(Status.PAID_OUT);
         _transferFunds(taskAssignee, reward);
@@ -162,8 +162,8 @@ contract TaskEscrow is Initializable {
     }
 
     function reclaimFunds() external onlyTaskOwner onlyAfterDeadline {
-        require(status == Status.ASSIGNED, Error.INVALID_STATUS_FOR_RECLAIM());
         require(!isCompleted, Error.TASK_HAS_ALREADY_BEEN_COMPLETED());
+        require(status == Status.ASSIGNED, Error.INVALID_STATUS_FOR_RECLAIM());
 
         _updateStatus(Status.PAID_OUT);
         _transferFunds(taskOwner, reward);
@@ -178,9 +178,6 @@ contract TaskEscrow is Initializable {
     function _updateStatus(Status _newStatus) internal {
         Status oldStatus = status;
         status = _newStatus;
-
-        // Notify factory of status change
-        try ITaskFactory(factory).updateTaskStatus(oldStatus, _newStatus) {} catch {}
 
         emit Event.TaskStatusChanged(oldStatus, _newStatus);
     }
