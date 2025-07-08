@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.28;
+
+library Error {
+    error CALLER_IS_NOT_FACTORY();
+    error ONLY_TASK_OWNER_CAN_CALL();
+    error ONLY_TASK_ASSIGNEE_CAN_CALL();
+    error TASK_HAS_ALREADY_BEEN_ASSIGNED_OR_COMPLETED();
+    error TASK_NOT_ASSIGNED();
+    error TASK_NOT_COMPLETED();
+    error UNAUTHORIZED();
+    error NO_ACTIVE_DISPUTE();
+    error REWARD_CANNOT_BE_EMPTY();
+    error CAN_NOT_ASSIGN_TO_ADDRESS_ZERO();
+    error CAN_NOT_USE_ADDRESS_ZERO();
+    error TASK_HAS_ALREADY_BEEN_COMPLETED();
+    error DISPUTE_ALREADY_RAISED();
+    error TASK_HAS_ALREADY_BEEN_PAID_OUT();
+    error DEADLINE_NOT_REACHED();
+    error DEADLINE_HAS_PASSED();
+    error CANNOT_ASSIGN_TO_SELF();
+    error INVALID_STATUS_FOR_DISPUTE();
+    error INVALID_DISPUTE_WINNER();
+    error TASK_CANNOT_BE_CANCELLED();
+    error INVALID_STATUS_FOR_RECLAIM();
+    error INSUFFICIENT_BALANCE();
+}
