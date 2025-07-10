@@ -1,0 +1,29 @@
+name: Smart Contract Security Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  security-analysis:
+    runs-on: ubuntu-latest
+
+    # Use the Trail of Bits toolbox container
+    container:
+      image: ghcr.io/trailofbits/eth-security-toolbox/ci:nightly
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Compile contracts
+        run: npx hardhat compile
+
+
+      - name: Run Slither analysis
+        run: slither . || true
