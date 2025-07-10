@@ -49,6 +49,10 @@ Thank you for your interest in contributing to this project! We welcome contribu
 
 We use static analysis and symbolic execution tools to identify security vulnerabilities:
 
+You can setup ACT to run github actions locally or set up slither and mythril locally.
+
+[ACT documentation](https://github.com/nektos/act)
+
 ### Slither
 Slither is a static analysis framework that identifies common vulnerabilities:
 ```bash
