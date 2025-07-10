@@ -17,7 +17,7 @@ describe("TaskFactory:", function () {
         const Token = await hre.ethers.getContractFactory("ERC20Mock");
         const token = await Token.deploy("Test Token", "TST");
         await token.waitForDeployment();
-        await token.mint(user1.address, reward * 10n);
+        await token.mint(user1.address, reward * 50n);
 
         // Deploy TaskEscrow implementation
         const TaskEscrow = await hre.ethers.getContractFactory("TaskEscrow");
@@ -63,7 +63,7 @@ describe("TaskFactory:", function () {
             await token.connect(user1).approve(taskFactory.getAddress(), reward * 3n);
             
             // Create 3 tasks
-            for (let i = 0; i < 4; i++) {
+            for (let i = 0; i < 3; i++) {
                 await taskFactory.connect(user1).createTask(
                     `${title} ${i}`,
                     description,
@@ -86,7 +86,7 @@ describe("TaskFactory:", function () {
             await token.connect(user1).approve(taskFactory.getAddress(), reward * 3n);
             
             // Create 3 tasks
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 3; i++) {
                 await taskFactory.connect(user1).createTask(
                     `${title} ${i}`,
                     description,
