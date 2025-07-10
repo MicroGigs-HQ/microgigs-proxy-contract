@@ -376,6 +376,69 @@ describe("TaskFactory:", function () {
                 expect(factoryDetails.isDisputed).to.equal(escrowDetails.disputed);
             });
         });
+
+        describe("getUncompletedTasks", function () {
+            it("Should return empty array for no tasks", async function () {
+                const { taskFactory } = await loadFixture(deployTaskFactory);
+                const tasks = await taskFactory.getUncompletedTasks();
+                expect(tasks).to.be.an("array").that.is.empty;
+            });
+
+            it("Should return uncompleted tasks", async function () {
+                const { taskFactory, token, user1 } = await loadFixture(deployTaskFactory);
+                
+                await token.connect(user1).approve(taskFactory.getAddress(), reward * 3n);
+                
+                // Create 3 tasks
+                for (let i = 0; i < 3; i++) {
+                    await taskFactory.connect(user1).createTask(
+                        `${title} ${i}`,
+                        description,
+                        category,
+                        await token.getAddress(),
+                        deadlineInSeconds,
+                        reward
+                    );
+                }
+                
+                // Get uncompleted tasks
+                const tasks = await taskFactory.getUncompletedTasks();
+                
+                expect(tasks).to.have.lengthOf(3);
+            });
+
+            it("Should not include completed tasks", async function () {
+                const { taskFactory, token, user1, user2 } = await loadFixture(deployTaskFactory);
+                
+                await token.connect(user1).approve(taskFactory.getAddress(), reward * 3n);
+                
+                // Create 3 tasks
+                for (let i = 0; i < 3; i++) {
+                    await taskFactory.connect(user1).createTask(
+                        `${title} ${i}`,
+                        description,
+                        category,
+                        await token.getAddress(),
+                        deadlineInSeconds,
+                        reward
+                    );
+                }
+                
+                // Complete the first task
+                const firstTaskAddress = await taskFactory.tasks(0);
+                const firstTaskContract = await hre.ethers.getContractAt("TaskEscrow", firstTaskAddress);
+                
+                await firstTaskContract.connect(user1).assignTask(user2.address);
+                await firstTaskContract.connect(user2).submitWork();
+                await firstTaskContract.connect(user1).releasePayment();
+                
+                // Get uncompleted tasks
+                const tasks = await taskFactory.getUncompletedTasks();
+                
+                // Should only have 2 uncompleted tasks
+                expect(tasks).to.have.lengthOf(2);
+            });
+        });
     });
 
 });
