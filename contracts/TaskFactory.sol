@@ -127,4 +127,30 @@ contract TaskFactory is Initializable {
             task.isDisputed()
         );
     }
+
+    function getUncompletedTasks()
+        external
+        view
+        returns (address[] memory)
+    {
+        uint256 count = 0;
+        for (uint256 i = 0; i < tasks.length; i++) {
+            TaskEscrow task = TaskEscrow(payable(tasks[i]));
+            if (task.status() == TaskEscrow.Status.OPEN) {
+                count++;
+            }
+        }
+
+        address[] memory uncompletedTasks = new address[](count);
+        uint256 index = 0;
+        for (uint256 i = 0; i < tasks.length; i++) {
+            TaskEscrow task = TaskEscrow(payable(tasks[i]));
+            if (task.status() == TaskEscrow.Status.OPEN) {
+                uncompletedTasks[index] = tasks[i];
+                index++;
+            }
+        }
+        
+        return uncompletedTasks;
+    }
 }
