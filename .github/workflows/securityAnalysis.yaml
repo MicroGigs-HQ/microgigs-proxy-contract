@@ -24,6 +24,84 @@ jobs:
       - name: Compile contracts
         run: npx hardhat compile
 
-
       - name: Run Slither analysis
-        run: slither . || true
+        id: slither
+        run: |
+          echo "Running Slither security analysis..."
+          slither . --json slither-report.json || echo "SLITHER_FAILED=true" >> $GITHUB_ENV
+          
+          # Check if any high or medium severity issues were found
+          if [ -f slither-report.json ]; then
+            HIGH_ISSUES=$(jq '[.results.detectors[] | select(.impact == "High")] | length' slither-report.json)
+            MEDIUM_ISSUES=$(jq '[.results.detectors[] | select(.impact == "Medium")] | length' slither-report.json)
+            
+            echo "HIGH_ISSUES=$HIGH_ISSUES" >> $GITHUB_ENV
+            echo "MEDIUM_ISSUES=$MEDIUM_ISSUES" >> $GITHUB_ENV
+            
+            echo "High severity issues found: $HIGH_ISSUES"
+            echo "Medium severity issues found: $MEDIUM_ISSUES"
+            
+            # Output summary for GitHub
+            echo "::notice::Slither found $HIGH_ISSUES high severity and $MEDIUM_ISSUES medium severity issues"
+            
+            # Fail if high severity issues are found
+            if [ "$HIGH_ISSUES" -gt 0 ]; then
+              echo "::error::High severity security issues detected. PR cannot be merged."
+              exit 1
+            fi
+            
+            # Fail if medium severity issues are found also
+            if [ "$MEDIUM_ISSUES" -gt 0 ]; then
+              echo "::error::Medium severity security issues detected. PR cannot be merged."
+              exit 1
+            fi
+          else
+            echo "::error::Slither analysis failed to generate report"
+            exit 1
+          fi
+
+      - name: Upload Slither report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slither-security-report
+          path: slither-report.json
+
+      - name: Add security summary to PR
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let summary = '## 🔒 Security Analysis Summary\n\n';
+            
+            if (fs.existsSync('slither-report.json')) {
+              const report = JSON.parse(fs.readFileSync('slither-report.json', 'utf8'));
+              const highIssues = report.results.detectors.filter(d => d.impact === 'High').length;
+              const mediumIssues = report.results.detectors.filter(d => d.impact === 'Medium').length;
+              const lowIssues = report.results.detectors.filter(d => d.impact === 'Low').length;
+              
+              summary += `- **High Severity**: ${highIssues} issues\n`;
+              summary += `- **Medium Severity**: ${mediumIssues} issues\n`;
+              summary += `- **Low Severity**: ${lowIssues} issues\n\n`;
+              
+              if (highIssues > 0) {
+                summary += '❌ **This PR cannot be merged due to high severity security issues.**\n\n';
+              } else if (mediumIssues > 0) {
+                summary += '⚠️ **Medium severity issues detected. Please review carefully.**\n\n';
+              } else {
+                summary += '✅ **No high or medium severity issues detected.**\n\n';
+              }
+              
+              summary += 'Download the detailed security report from the workflow artifacts for more information.';
+            } else {
+              summary += '❌ **Security analysis failed to complete.**';
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: summary
+            });
