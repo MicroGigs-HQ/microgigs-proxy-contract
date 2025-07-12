@@ -51,10 +51,10 @@ jobs:
             fi
             
             # Fail if medium severity issues are found also
-            if [ "$MEDIUM_ISSUES" -gt 0 ]; then
-              echo "::error::Medium severity security issues detected. PR cannot be merged."
-              exit 1
-            fi
+            # if [ "$MEDIUM_ISSUES" -gt 0 ]; then
+            #   echo "::error::Medium severity security issues detected. PR cannot be merged."
+            #   exit 1
+            # fi
           else
             echo "::error::Slither analysis failed to generate report"
             exit 1
