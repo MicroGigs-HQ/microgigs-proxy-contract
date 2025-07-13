@@ -17,7 +17,18 @@ contract TaskFactory is Initializable {
     address[] public tasks;
     mapping(address => uint256) public userTaskCounts;
     mapping(TaskEscrow.Status => uint256) public taskStatusCounts;
-
+    mapping (address => TaskInfo) public taskDetails;
+    struct TaskInfo{
+        address taskAddress;
+        address taskOwner;
+        string  title;
+        string  description;
+        string  category;
+        address tokenAddress;
+        uint256 deadline;
+        uint256 reward;
+        TaskEscrow.Status  status;
+    }
     function initialize(address _taskEscrowImpl) public initializer {
         taskEscrowImplementation = _taskEscrowImpl;
     }
@@ -57,6 +68,20 @@ contract TaskFactory is Initializable {
         tasks.push(clone);
         userTaskCounts[msg.sender]++;
         taskStatusCounts[TaskEscrow.Status.OPEN]++;
+
+        //Store task details
+        TaskInfo memory info = TaskInfo({
+            taskAddress: clone,
+            taskOwner: msg.sender,
+            title: _title,
+            description: _description,
+            category: _category,
+            tokenAddress: _tokenAddress,
+            deadline: _deadline,
+            reward: _reward,
+            status: TaskEscrow.Status.OPEN
+        });
+        taskDetails[clone] = info;
 
         emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
         return clone;
