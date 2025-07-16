@@ -178,4 +178,14 @@ contract TaskFactory is Initializable {
         
         return uncompletedTasks;
     }
+
+    function getDetailsForATask(address _taskAddress)
+        external
+        view
+        returns(TaskInfo memory)
+        {
+            require(_taskAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+            return taskDetails[_taskAddress];
+        }
+
 }
