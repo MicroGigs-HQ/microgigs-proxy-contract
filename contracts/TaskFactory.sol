@@ -5,11 +5,13 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./TaskEscrow.sol";
 import "./lib/Error.sol";
 import "./lib/Event.sol";
 
-contract TaskFactory is Initializable {
+contract TaskFactory is Initializable, ReentrancyGuard {
     using Clones for address;
     using SafeERC20 for IERC20;
 
@@ -30,6 +32,7 @@ contract TaskFactory is Initializable {
         TaskEscrow.Status  status;
     }
     function initialize(address _taskEscrowImpl) public initializer {
+        require(_taskEscrowImpl != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
         taskEscrowImplementation = _taskEscrowImpl;
     }
 
@@ -40,18 +43,25 @@ contract TaskFactory is Initializable {
         address _tokenAddress,
         uint256 _deadline,
         uint256 _reward
-    ) external payable returns (address) {
+    ) external nonReentrant payable returns (address) {
         require(_reward > 0, Error.REWARD_CANNOT_BE_EMPTY());
         require(msg.sender != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
         require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
 
-        // Create new task escrow contract
+        //====Create new task escrow contract  ====//
         address clone = taskEscrowImplementation.clone();
         address payable payableClone = payable(clone);
 
+    //==== Update state BEFORE external call  ====//
+        tasks.push(clone);
+        userTaskCounts[msg.sender]++;
+        taskStatusCounts[TaskEscrow.Status.OPEN]++;
+
+        emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
+
+        //==== External call AFTER state changes and event ====//
         IERC20 token = IERC20(_tokenAddress);
         require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
-
         token.safeTransferFrom(msg.sender, clone, _reward);
 
         TaskEscrow(payableClone).initialize(
@@ -64,7 +74,7 @@ contract TaskFactory is Initializable {
             _reward,
             _deadline
         );
-
+        
         tasks.push(clone);
         userTaskCounts[msg.sender]++;
         taskStatusCounts[TaskEscrow.Status.OPEN]++;
@@ -82,10 +92,9 @@ contract TaskFactory is Initializable {
             status: TaskEscrow.Status.OPEN
         });
         taskDetails[clone] = info;
-
-        emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
         return clone;
     }
+
 
     function getTotalTasks() external view returns (uint256) {
         return tasks.length;
@@ -112,7 +121,10 @@ contract TaskFactory is Initializable {
     }
 
     function isTaskContract(address _address) public view returns (bool) {
-        for (uint256 i = 0; i < tasks.length; i++) {
+        require(_address != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        
+        uint256 tasksLength = tasks.length;
+        for (uint256 i = 0; i < tasksLength; i++) {
             if (tasks[i] == _address) {
                 return true;
             }
@@ -158,8 +170,10 @@ contract TaskFactory is Initializable {
         view
         returns (address[] memory)
     {
+        uint256 tasksLength = tasks.length;
         uint256 count = 0;
-        for (uint256 i = 0; i < tasks.length; i++) {
+        
+        for (uint256 i = 0; i < tasksLength; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
             if (task.status() == TaskEscrow.Status.OPEN) {
                 count++;
@@ -168,7 +182,8 @@ contract TaskFactory is Initializable {
 
         address[] memory uncompletedTasks = new address[](count);
         uint256 index = 0;
-        for (uint256 i = 0; i < tasks.length; i++) {
+        
+        for (uint256 i = 0; i < tasksLength; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
             if (task.status() == TaskEscrow.Status.OPEN) {
                 uncompletedTasks[index] = tasks[i];

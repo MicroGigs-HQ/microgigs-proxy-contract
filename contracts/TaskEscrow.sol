@@ -76,6 +76,10 @@ contract TaskEscrow is Initializable {
         uint256 _reward,
         uint256 _deadline
     ) public initializer {
+        require(_factory != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        require(_taskOwner != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        
         factory = _factory;
         taskOwner = _taskOwner;
         title = _title;
