@@ -7,11 +7,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./lib/Error.sol";
 import "./lib/Event.sol";
 
-// interface ITaskFactory {
-//     function updateTaskStatus(TaskEscrow.Status _oldStatus, TaskEscrow.Status _newStatus)
-//         external;
-// }
-
 contract TaskEscrow is Initializable {
     using SafeERC20 for IERC20;
 
@@ -250,4 +245,33 @@ contract TaskEscrow is Initializable {
     }
 
     receive() external payable {}
+
+    function emergencyWithdrawETH() external onlyFactory {
+        uint256 balance = address(this).balance;
+        require(balance > 0, Error.NO_ETH_TO_WITHDRAW());
+
+        (bool success, ) = factory.call{value: balance}("");
+        require(success, Error.ETH_WITHDRAWAL_FAILED());
+
+        emit Event.EmergencyETHWithdrawn(balance);
+    }
+
+    function emergencyWithdrawToken(address token) external onlyFactory {
+        require(token != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+
+        // Don't allow withdrawal of task reward token if task is still active
+        if (token == tokenAddress) {
+            require(
+                status == Status.PAID_OUT || status == Status.CANCELLED,
+                Error.CANNOT_WITHDRAW_TASK_REWARD_TOKEN_WHILE_TASK_IS_ACTIVE()
+            );
+        }
+
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        require(balance > 0, Error.NO_TOKENS_TO_WITHDRAW());
+
+        IERC20(token).safeTransfer(factory, balance);
+
+        emit Event.EmergencyTokenWithdrawn(token, balance);
+    }
 }
