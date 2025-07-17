@@ -18,4 +18,6 @@ library Event {
     );
     event TaskCancelled();
     event FundsReclaimed(address indexed recipient, uint256 amount);
+    event EmergencyETHWithdrawn(uint256 balance);
+    event EmergencyTokenWithdrawn(address indexed token, uint256 balance);
 }
