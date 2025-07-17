@@ -87,7 +87,8 @@ contract TaskFactory is Initializable {
     }
 
     function isTaskContract(address _address) public view returns (bool) {
-        for (uint256 i = 0; i < tasks.length; i++) {
+        uint256 tasksLength = tasks.length;
+        for (uint256 i = 0; i < tasksLength; i++) {
             if (tasks[i] == _address) {
                 return true;
             }
@@ -133,8 +134,10 @@ contract TaskFactory is Initializable {
         view
         returns (address[] memory)
     {
+        uint256 tasksLength = tasks.length;
         uint256 count = 0;
-        for (uint256 i = 0; i < tasks.length; i++) {
+        
+        for (uint256 i = 0; i < tasksLength; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
             if (task.status() == TaskEscrow.Status.OPEN) {
                 count++;
@@ -143,7 +146,8 @@ contract TaskFactory is Initializable {
 
         address[] memory uncompletedTasks = new address[](count);
         uint256 index = 0;
-        for (uint256 i = 0; i < tasks.length; i++) {
+        
+        for (uint256 i = 0; i < tasksLength; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
             if (task.status() == TaskEscrow.Status.OPEN) {
                 uncompletedTasks[index] = tasks[i];
