@@ -5,11 +5,13 @@ import "@openzeppelin/contracts/proxy/Clones.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./TaskEscrow.sol";
 import "./lib/Error.sol";
 import "./lib/Event.sol";
 
-contract TaskFactory is Initializable {
+contract TaskFactory is Initializable, ReentrancyGuard {
     using Clones for address;
     using SafeERC20 for IERC20;
 
@@ -22,45 +24,48 @@ contract TaskFactory is Initializable {
         taskEscrowImplementation = _taskEscrowImpl;
     }
 
-    function createTask(
-        string memory _title,
-        string memory _description,
-        string memory _category,
-        address _tokenAddress,
-        uint256 _deadline,
-        uint256 _reward
-    ) external payable returns (address) {
-        require(_reward > 0, Error.REWARD_CANNOT_BE_EMPTY());
-        require(msg.sender != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
-        require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+     function createTask(
+    string memory _title,
+    string memory _description,
+    string memory _category,
+    address _tokenAddress,
+    uint256 _deadline,
+    uint256 _reward
+) external nonReentrant payable returns (address) {
+    require(_reward > 0, Error.REWARD_CANNOT_BE_EMPTY());
+    require(msg.sender != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+    require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
 
-        // Create new task escrow contract
-        address clone = taskEscrowImplementation.clone();
-        address payable payableClone = payable(clone);
+    //====Create new task escrow contract  ====//
+    address clone = taskEscrowImplementation.clone();
+    address payable payableClone = payable(clone);
 
-        IERC20 token = IERC20(_tokenAddress);
-        require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
+   //==== Update state BEFORE external call  ====//
+    tasks.push(clone);
+    userTaskCounts[msg.sender]++;
+    taskStatusCounts[TaskEscrow.Status.OPEN]++;
 
-        token.safeTransferFrom(msg.sender, clone, _reward);
+    emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
 
-        TaskEscrow(payableClone).initialize(
-            address(this),
-            msg.sender,
-            _title,
-            _description,
-            _category,
-            _tokenAddress,
-            _reward,
-            _deadline
-        );
+    //==== External call AFTER state changes and event ====//
+    IERC20 token = IERC20(_tokenAddress);
+    require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
+    token.safeTransferFrom(msg.sender, clone, _reward);
 
-        tasks.push(clone);
-        userTaskCounts[msg.sender]++;
-        taskStatusCounts[TaskEscrow.Status.OPEN]++;
+    TaskEscrow(payableClone).initialize(
+        address(this),
+        msg.sender,
+        _title,
+        _description,
+        _category,
+        _tokenAddress,
+        _reward,
+        _deadline
+    );
 
-        emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
-        return clone;
-    }
+    return clone;
+}
+
 
     function getTotalTasks() external view returns (uint256) {
         return tasks.length;
@@ -87,7 +92,8 @@ contract TaskFactory is Initializable {
     }
 
     function isTaskContract(address _address) public view returns (bool) {
-        for (uint256 i = 0; i < tasks.length; i++) {
+        uint256 tasksLength = tasks.length;
+        for (uint256 i = 0; i < tasksLength; i++) {
             if (tasks[i] == _address) {
                 return true;
             }
@@ -128,9 +134,15 @@ contract TaskFactory is Initializable {
         );
     }
 
-    function getUncompletedTasks() external view returns (address[] memory) {
+    function getUncompletedTasks()
+        external
+        view
+        returns (address[] memory)
+    {
+        uint256 tasksLength = tasks.length;
         uint256 count = 0;
-        for (uint256 i = 0; i < tasks.length; i++) {
+
+        for (uint256 i = 0; i < tasksLength; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
             if (task.status() == TaskEscrow.Status.OPEN) {
                 count++;
@@ -139,14 +151,15 @@ contract TaskFactory is Initializable {
 
         address[] memory uncompletedTasks = new address[](count);
         uint256 index = 0;
-        for (uint256 i = 0; i < tasks.length; i++) {
+
+        for (uint256 i = 0; i < tasksLength; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
             if (task.status() == TaskEscrow.Status.OPEN) {
                 uncompletedTasks[index] = tasks[i];
                 index++;
             }
         }
-
+        
         return uncompletedTasks;
     }
 }
