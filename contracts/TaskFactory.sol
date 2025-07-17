@@ -24,48 +24,47 @@ contract TaskFactory is Initializable, ReentrancyGuard {
         taskEscrowImplementation = _taskEscrowImpl;
     }
 
-     function createTask(
-    string memory _title,
-    string memory _description,
-    string memory _category,
-    address _tokenAddress,
-    uint256 _deadline,
-    uint256 _reward
-) external nonReentrant payable returns (address) {
-    require(_reward > 0, Error.REWARD_CANNOT_BE_EMPTY());
-    require(msg.sender != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
-    require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+    function createTask(
+        string memory _title,
+        string memory _description,
+        string memory _category,
+        address _tokenAddress,
+        uint256 _deadline,
+        uint256 _reward
+    ) external payable nonReentrant returns (address) {
+        require(_reward > 0, Error.REWARD_CANNOT_BE_EMPTY());
+        require(msg.sender != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        require(_tokenAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
 
-    //====Create new task escrow contract  ====//
-    address clone = taskEscrowImplementation.clone();
-    address payable payableClone = payable(clone);
+        //====Create new task escrow contract  ====//
+        address clone = taskEscrowImplementation.clone();
+        address payable payableClone = payable(clone);
 
-   //==== Update state BEFORE external call  ====//
-    tasks.push(clone);
-    userTaskCounts[msg.sender]++;
-    taskStatusCounts[TaskEscrow.Status.OPEN]++;
+        //==== Update state BEFORE external call  ====//
+        tasks.push(clone);
+        userTaskCounts[msg.sender]++;
+        taskStatusCounts[TaskEscrow.Status.OPEN]++;
 
-    emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
+        emit Event.TaskCreated(clone, msg.sender, _tokenAddress, _reward);
 
-    //==== External call AFTER state changes and event ====//
-    IERC20 token = IERC20(_tokenAddress);
-    require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
-    token.safeTransferFrom(msg.sender, clone, _reward);
+        //==== External call AFTER state changes and event ====//
+        IERC20 token = IERC20(_tokenAddress);
+        require(token.balanceOf(msg.sender) >= _reward, Error.INSUFFICIENT_BALANCE());
+        token.safeTransferFrom(msg.sender, clone, _reward);
 
-    TaskEscrow(payableClone).initialize(
-        address(this),
-        msg.sender,
-        _title,
-        _description,
-        _category,
-        _tokenAddress,
-        _reward,
-        _deadline
-    );
+        TaskEscrow(payableClone).initialize(
+            address(this),
+            msg.sender,
+            _title,
+            _description,
+            _category,
+            _tokenAddress,
+            _reward,
+            _deadline
+        );
 
-    return clone;
-}
-
+        return clone;
+    }
 
     function getTotalTasks() external view returns (uint256) {
         return tasks.length;
@@ -134,11 +133,7 @@ contract TaskFactory is Initializable, ReentrancyGuard {
         );
     }
 
-    function getUncompletedTasks()
-        external
-        view
-        returns (address[] memory)
-    {
+    function getUncompletedTasks() external view returns (address[] memory) {
         uint256 tasksLength = tasks.length;
         uint256 count = 0;
 
@@ -159,7 +154,7 @@ contract TaskFactory is Initializable, ReentrancyGuard {
                 index++;
             }
         }
-        
+
         return uncompletedTasks;
     }
 }
