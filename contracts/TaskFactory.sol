@@ -128,11 +128,7 @@ contract TaskFactory is Initializable {
         );
     }
 
-    function getUncompletedTasks()
-        external
-        view
-        returns (address[] memory)
-    {
+    function getUncompletedTasks() external view returns (address[] memory) {
         uint256 count = 0;
         for (uint256 i = 0; i < tasks.length; i++) {
             TaskEscrow task = TaskEscrow(payable(tasks[i]));
@@ -150,7 +146,7 @@ contract TaskFactory is Initializable {
                 index++;
             }
         }
-        
+
         return uncompletedTasks;
     }
 }

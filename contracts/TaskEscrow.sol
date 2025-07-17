@@ -250,7 +250,7 @@ contract TaskEscrow is Initializable {
         uint256 balance = address(this).balance;
         require(balance > 0, Error.NO_ETH_TO_WITHDRAW());
 
-        (bool success, ) = factory.call{value: balance}("");
+        (bool success,) = factory.call{value: balance}("");
         require(success, Error.ETH_WITHDRAWAL_FAILED());
 
         emit Event.EmergencyETHWithdrawn(balance);
