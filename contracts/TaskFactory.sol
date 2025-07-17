@@ -19,7 +19,18 @@ contract TaskFactory is Initializable, ReentrancyGuard {
     address[] public tasks;
     mapping(address => uint256) public userTaskCounts;
     mapping(TaskEscrow.Status => uint256) public taskStatusCounts;
-
+    mapping (address => TaskInfo) public taskDetails;
+    struct TaskInfo{
+        address taskAddress;
+        address taskOwner;
+        string  title;
+        string  description;
+        string  category;
+        address tokenAddress;
+        uint256 deadline;
+        uint256 reward;
+        TaskEscrow.Status  status;
+    }
     function initialize(address _taskEscrowImpl) public initializer {
         require(_taskEscrowImpl != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
         taskEscrowImplementation = _taskEscrowImpl;
@@ -63,7 +74,24 @@ contract TaskFactory is Initializable, ReentrancyGuard {
             _reward,
             _deadline
         );
+        
+        tasks.push(clone);
+        userTaskCounts[msg.sender]++;
+        taskStatusCounts[TaskEscrow.Status.OPEN]++;
 
+        //Store task details
+        TaskInfo memory info = TaskInfo({
+            taskAddress: clone,
+            taskOwner: msg.sender,
+            title: _title,
+            description: _description,
+            category: _category,
+            tokenAddress: _tokenAddress,
+            deadline: _deadline,
+            reward: _reward,
+            status: TaskEscrow.Status.OPEN
+        });
+        taskDetails[clone] = info;
         return clone;
     }
 
@@ -165,4 +193,14 @@ contract TaskFactory is Initializable, ReentrancyGuard {
         
         return uncompletedTasks;
     }
+
+    function getDetailsForATask(address _taskAddress)
+        external
+        view
+        returns(TaskInfo memory)
+        {
+            require(_taskAddress != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+            return taskDetails[_taskAddress];
+        }
+
 }
