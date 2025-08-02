@@ -7,11 +7,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "./TaskEscrow.sol";
 import "./lib/Error.sol";
 import "./lib/Event.sol";
 
-contract TaskFactory is Initializable, ReentrancyGuard {
+contract TaskFactory is Initializable, ReentrancyGuardUpgradeable {
     using Clones for address;
     using SafeERC20 for IERC20;
 
@@ -22,6 +23,7 @@ contract TaskFactory is Initializable, ReentrancyGuard {
 
     function initialize(address _taskEscrowImpl) public initializer {
         require(_taskEscrowImpl != address(0), Error.CAN_NOT_USE_ADDRESS_ZERO());
+        __ReentrancyGuard_init();
         taskEscrowImplementation = _taskEscrowImpl;
     }
 
@@ -164,5 +166,9 @@ contract TaskFactory is Initializable, ReentrancyGuard {
         }
         
         return uncompletedTasks;
+    }
+
+    function getAllTasks() external view returns (address[] memory) {
+        return tasks;
     }
 }
