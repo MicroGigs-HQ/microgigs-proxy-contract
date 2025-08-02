@@ -165,4 +165,8 @@ contract TaskFactory is Initializable, ReentrancyGuard {
         
         return uncompletedTasks;
     }
+
+    function getAllTasks() external view returns (address[] memory) {
+        return tasks;
+    }
 }

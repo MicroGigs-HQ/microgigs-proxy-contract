@@ -8,7 +8,6 @@ describe("TaskFactory:", function () {
     const category = "Design";
     const reward = 100n;
     const deadlineInSeconds = 86400n;
-    const anyValue = "0x01";
 
     async function deployTaskFactory() {
         const [owner, user1, user2] = await hre.ethers.getSigners();
